@@ -10,16 +10,15 @@ import SnapKit
 import RxRelay
 import RxSwift
 import Kingfisher
+import RxCocoa
 
 class CategoryCell: UICollectionViewCell {
-    let scrollOffset = BehaviorRelay<CGFloat>(value: 0.0)
-    private(set) var nameLabel = UILabel()
-    private(set) var coverImageView = UIImageView()
-    private(set) var selectionImageView = UIImageView()
-    private var maxCellSize = CGSize(width: 52, height: 72)
-    private var minCellSize = CGSize(width: 40, height: 40)
-    let maxOffset: CGFloat = 32
-    var disposeBag = DisposeBag()
+    private var nameLabel = UILabel()
+    private var coverImageView = UIImageView()
+    private var selectionImageView = UIImageView()
+    
+    private(set) var disposeBag = DisposeBag()
+    
     var category: IdeaCategory? {
         didSet {
             guard let category = category else {
@@ -31,6 +30,7 @@ class CategoryCell: UICollectionViewCell {
             coverImageView.kf.setImage(with: url)
         }
     }
+    
     var isSelectedCategory: Bool = false {
         didSet {
             self.setState()
@@ -39,6 +39,7 @@ class CategoryCell: UICollectionViewCell {
     
     override func prepareForReuse() {
         isSelectedCategory = false
+        disposeBag = DisposeBag()
     }
     
     override init(frame: CGRect) {
@@ -51,14 +52,17 @@ class CategoryCell: UICollectionViewCell {
     }
     
     private func setupViews() {
+        self.translatesAutoresizingMaskIntoConstraints = false
+        backgroundColor = .clear
+        
         selectionImageView.image = UIImage(named: "selection")
         self.addSubview(selectionImageView)
         selectionImageView.snp.makeConstraints { make in
-            make.size.greaterThanOrEqualTo(minCellSize.width)
-            make.size.lessThanOrEqualTo(maxCellSize.width)
+            make.size.greaterThanOrEqualTo(40)
+            make.size.lessThanOrEqualTo(52)
             make.width.equalTo(selectionImageView.snp.height)
-            make.width.lessThanOrEqualToSuperview()
-            make.top.equalToSuperview()
+            make.width.lessThanOrEqualToSuperview().inset(2)
+            make.top.equalToSuperview().inset(8)
             make.centerX.equalToSuperview()
         }
         
@@ -67,68 +71,60 @@ class CategoryCell: UICollectionViewCell {
         coverImageView.snp.makeConstraints { make in
             make.size.equalTo(selectionImageView.snp.size).inset(4)
             make.width.equalTo(coverImageView.snp.height)
-            make.top.equalToSuperview().inset(4)
+            make.top.equalToSuperview().inset(12)
             make.centerX.equalToSuperview()
         }
-        
         self.bringSubviewToFront(selectionImageView)
         
         self.addSubview(nameLabel)
-        nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
-        nameLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        nameLabel.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
+        nameLabel.setContentCompressionResistancePriority(.defaultHigh, for: .horizontal)
         nameLabel.textColor = .black
         nameLabel.font = .systemFont(ofSize: 12)
         nameLabel.adjustsFontSizeToFitWidth = true
         nameLabel.minimumScaleFactor = 0.66
         nameLabel.textAlignment = .center
         nameLabel.snp.makeConstraints { make in
-            make.top.equalTo(selectionImageView.snp.bottom).offset(6).priority(.medium)
-            make.left.right.bottom.equalToSuperview().priority(.medium)
+            make.top.equalTo(selectionImageView.snp.bottom).offset(6).priority(.low)
+            make.top.greaterThanOrEqualTo(selectionImageView.snp.bottom)
+            make.left.right.equalToSuperview()
+            make.bottom.equalToSuperview().inset(8).priority(.high)
         }
         
         setState()
     }
     
-    public func calculateItemSize(for offset: CGFloat) -> CGSize {
-        let offset = min(offset, maxOffset)
-        let offsetFraction = (maxOffset - offset) / maxOffset
-        
-        let cellWidth = minCellSize.width + ((maxCellSize.width - minCellSize.width) * offsetFraction)
-        let cellHeight = minCellSize.height + ((maxCellSize.height - minCellSize.height) * offsetFraction)
-        
-        return CGSize(width: floor(cellWidth), height: floor(cellHeight))
-    }
-    
-    public func calculateItemSize(forCollectionHeight height: CGFloat) -> CGSize {
-        let cellHeight = height - 16
-        let heightFraction = cellHeight / maxCellSize.height
-        
-        let labelWidth = nameLabel.intrinsicContentSize.width
-        if labelWidth > maxCellSize.width {
-            maxCellSize = CGSize(width: labelWidth, height: maxCellSize.height)
+    private func animateTransition(isShrinking: Bool) {
+        if isShrinking {
+            UIView.animate(
+                withDuration: 0.1,
+                delay: 0.0,
+                options: .curveEaseOut,
+                animations: {
+                    self.nameLabel.alpha = 0
+                },
+                completion: nil
+            )
+        } else {
+            UIView.animate(
+                withDuration: 0.1,
+                delay: 0.1,
+                options: .curveEaseOut,
+                animations: {
+                    self.nameLabel.alpha = 1
+                },
+                completion: nil
+            )
         }
-        
-        let cellWidth = maxCellSize.width * heightFraction
-        
-        return CGSize(width: cellWidth, height: cellHeight)
-    }
-    
-    override var intrinsicContentSize: CGSize {
-        let labelWidth = nameLabel.intrinsicContentSize.width
-        if labelWidth > maxCellSize.width {
-            maxCellSize = CGSize(width: labelWidth, height: maxCellSize.height)
-        }
-        let desiredSize = calculateItemSize(for: scrollOffset.value)
-        return desiredSize
     }
     
     private func setState() {
         self.selectionImageView.isHidden = !self.isSelectedCategory
     }
-//    
-//    override func preferredLayoutAttributesFitting(_ layoutAttributes: UICollectionViewLayoutAttributes) -> UICollectionViewLayoutAttributes {
-//        super.preferredLayoutAttributesFitting(layoutAttributes)
-//        layoutAttributes.size = self.intrinsicContentSize
-//        return layoutAttributes
-//    }
+    
+    override func apply(_ layoutAttributes: UICollectionViewLayoutAttributes) {
+        self.animateTransition(isShrinking: layoutAttributes.frame.height < 60)
+        super.apply(layoutAttributes)
+        layoutIfNeeded()
+    }
 }
